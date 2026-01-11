@@ -1,0 +1,572 @@
+Description: Bedrock_Knowledge_Base_Redshift
+
+Resources:
+
+  #
+  # Redshift Cluster
+  #
+  RedshiftCluster:
+    Type: AWS::Redshift::Cluster
+    Properties:
+      ClusterIdentifier: redshift-1
+      ClusterType: single-node
+      NodeType: ra3.large
+      DBName: dev
+      MasterUsername: admin
+      MasterUserPassword: thftr$3431#T
+      PubliclyAccessible: true
+
+  #
+  # Secret with Redshift Login
+  #
+  RedshiftDataApiSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: 'redshift-1-un-pw'
+      Description: !Sub "redshift credentials for cluster redshift-1"
+      SecretString: !Sub |
+        {
+          "username": "admin",
+          "password": "thftr$3431#T",
+          "dbClusterIdentifier": "redshift-1"
+        }
+      Tags:
+        - Key: RedshiftDataFullAccess
+          Value: "true"
+
+  #
+  # Lambda Function IAM Role
+  # 
+  LambdaRedShiftSetUpExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: "sts:AssumeRole"
+      Policies:
+        # Imporvement required - premissions need to be scoped down
+        - PolicyName: Admin
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 
+                  - '*'
+                Resource: '*'
+
+  #
+  # Lambda Function to set up Redshift
+  #
+  RedshiftSetUpLambdaFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: RedshiftCluster
+    Properties:
+      FunctionName: 'Redshift-SetUp'
+      Handler: index.lambda_handler
+      Role: !GetAtt LambdaRedShiftSetUpExecutionRole.Arn
+      Runtime: python3.14
+      Code:
+        ZipFile: |
+          
+          import cfnresponse
+          import urllib3
+          import boto3
+          import os
+          
+          def lambda_handler(event, context):
+
+            print('-- Event below --')
+            print(event)
+            print('--')
+
+            if event['RequestType'] == 'Create':
+              try:
+                # Start
+                import json
+                import boto3
+                import time
+                import os
+
+                rsd = boto3.client("redshift-data")
+
+                def run_redshift_sql(sql: str) -> str:
+                  try:
+                    resp = rsd.execute_statement(
+                      ClusterIdentifier='redshift-1',
+                      Database='dev',
+                      SecretArn=os.environ['REDSHIFT_SECRETE_ARN'],
+                      Sql=sql,
+                    )
+                  except e:
+                    print(e)
+
+                #
+                # KB IAM role premisions
+                #
+                sql1 = 'CREATE USER "IAMR:' + os.environ['KB_IAM_ROLE_NAME'] +'" WITH PASSWORD DISABLE;'
+                run_redshift_sql(sql1)
+                time.sleep(15)
+
+                sql2 = 'GRANT USAGE ON SCHEMA public TO "IAMR:' + os.environ['KB_IAM_ROLE_NAME'] + '";'
+                run_redshift_sql(sql2)
+                time.sleep(15)
+
+                sql3 = 'GRANT SELECT ON ALL TABLES IN SCHEMA public TO "IAMR:' + os.environ['KB_IAM_ROLE_NAME'] + '";'
+                run_redshift_sql(sql3)
+                time.sleep(15)
+
+                #
+                # Create tables
+                # 
+                run_redshift_sql('CREATE TABLE accounts (account_id INT, customer_id INT, type VARCHAR(50), balance DECIMAL(10,2));')
+                run_redshift_sql('CREATE TABLE customers (customer_id INT, name VARCHAR(100), email VARCHAR(100));')
+                run_redshift_sql('CREATE TABLE transactions (transaction_id INT, account_id INT, date DATE, amount DECIMAL(10,2), type VARCHAR(50));')
+                time.sleep(15)
+
+                #
+                # Account
+                #
+                run_redshift_sql("INSERT INTO accounts (account_id, customer_id, type, balance) VALUES (1, 1, 'Credit', -1750.58);")
+                run_redshift_sql("INSERT INTO accounts (account_id, customer_id, type, balance) VALUES (2, 2, 'Savings', 2282.36);")
+                run_redshift_sql("INSERT INTO accounts (account_id, customer_id, type, balance) VALUES (3, 2, 'Credit', -3609.05);")
+                run_redshift_sql("INSERT INTO accounts (account_id, customer_id, type, balance) VALUES (4, 2, 'Checking', 7612.19);")
+                run_redshift_sql("INSERT INTO accounts (account_id, customer_id, type, balance) VALUES (5, 3, 'Credit', -2886.93);")
+                run_redshift_sql("INSERT INTO accounts (account_id, customer_id, type, balance) VALUES (6, 4, 'Checking', 2231.61);")
+                run_redshift_sql("INSERT INTO accounts (account_id, customer_id, type, balance) VALUES (7, 4, 'Savings', 1111.88);")
+                run_redshift_sql("INSERT INTO accounts (account_id, customer_id, type, balance) VALUES (8, 5, 'Checking', 3653.9);")
+                run_redshift_sql("INSERT INTO accounts (account_id, customer_id, type, balance) VALUES (9, 5, 'Savings', 6076.89);")
+                run_redshift_sql("INSERT INTO accounts (account_id, customer_id, type, balance) VALUES (10, 6, 'Credit', -2702.88);")
+                run_redshift_sql("INSERT INTO accounts (account_id, customer_id, type, balance) VALUES (11, 7, 'Savings', 880.12);")
+                run_redshift_sql("INSERT INTO accounts (account_id, customer_id, type, balance) VALUES (12, 8, 'Credit', -1907.4);")
+                run_redshift_sql("INSERT INTO accounts (account_id, customer_id, type, balance) VALUES (13, 8, 'Savings', 5815.79);")
+                run_redshift_sql("INSERT INTO accounts (account_id, customer_id, type, balance) VALUES (14, 9, 'Checking', 553.66);")
+                run_redshift_sql("INSERT INTO accounts (account_id, customer_id, type, balance) VALUES (15, 9, 'Checking', 7753.38);")
+                run_redshift_sql("INSERT INTO accounts (account_id, customer_id, type, balance) VALUES (16, 9, 'Checking', 8567.65);")
+                run_redshift_sql("INSERT INTO accounts (account_id, customer_id, type, balance) VALUES (17, 10, 'Savings', 2851.94);")
+
+                #
+                # Customer
+                #
+                run_redshift_sql("INSERT INTO customers (customer_id, name, email) VALUES (1, 'Jane Doe', 'jane.doe@example.com');")
+                run_redshift_sql("INSERT INTO customers (customer_id, name, email) VALUES (2, 'Charlie Williams', 'charlie.williams@example.com');")
+                run_redshift_sql("INSERT INTO customers (customer_id, name, email) VALUES (3, 'Bob Johnson', 'bob.johnson@example.com');")
+                run_redshift_sql("INSERT INTO customers (customer_id, name, email) VALUES (4, 'Jane Davis', 'jane.davis@example.com');")
+                run_redshift_sql("INSERT INTO customers (customer_id, name, email) VALUES (5, 'Jane Rodriguez', 'jane.rodriguez@example.com');")
+                run_redshift_sql("INSERT INTO customers (customer_id, name, email) VALUES (6, 'Eve Doe', 'eve.doe@example.com');")
+                run_redshift_sql("INSERT INTO customers (customer_id, name, email) VALUES (7, 'John Smith', 'john.smith@example.com');")
+                run_redshift_sql("INSERT INTO customers (customer_id, name, email) VALUES (8, 'Bob Williams', 'bob.williams@example.com');")
+                run_redshift_sql("INSERT INTO customers (customer_id, name, email) VALUES (9, 'Grace Rodriguez', 'grace.rodriguez@example.com');")
+                run_redshift_sql("INSERT INTO customers (customer_id, name, email) VALUES (10, 'John Davis', 'john.davis@example.com');")
+
+                #
+                # Transaction
+                #
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (1, 1, '2025-06-08', -259.64, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (2, 1, '2024-09-21', -466.04, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (3, 1, '2024-10-03', -857.19, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (4, 1, '2025-06-04', 68.28, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (5, 1, '2025-06-08', -75.48, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (6, 1, '2024-10-07', 376.32, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (7, 1, '2024-09-14', -351.43, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (8, 1, '2025-05-05', 643.61, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (9, 1, '2025-02-06', -464.52, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (10, 1, '2024-11-13', 752.74, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (11, 1, '2025-05-14', 310.88, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (12, 1, '2024-10-05', -82.3, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (13, 1, '2025-06-20', -506.74, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (14, 1, '2024-11-28', -474.52, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (15, 1, '2025-01-23', 795.65, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (16, 1, '2025-02-26', -561.36, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (17, 2, '2025-07-15', 511.56, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (18, 2, '2025-06-13', 254.89, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (19, 2, '2025-01-26', 192.82, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (20, 2, '2025-02-16', 191.78, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (21, 2, '2024-12-03', -497.17, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (22, 2, '2025-08-25', 360.57, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (23, 2, '2024-09-15', 769.58, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (24, 2, '2024-10-06', -319.65, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (25, 2, '2025-01-20', -683.68, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (26, 2, '2025-04-18', 943.78, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (27, 2, '2024-12-14', 825.26, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (28, 2, '2025-03-31', 683.34, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (29, 2, '2024-10-23', -602.18, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (30, 2, '2025-06-09', 78.76, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (31, 2, '2025-08-30', 197.89, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (32, 2, '2025-08-21', -776.26, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (33, 2, '2025-03-26', -521.1, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (34, 2, '2024-11-13', 893.9, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (35, 2, '2024-12-25', 632.05, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (36, 2, '2025-06-27', -743.22, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (37, 3, '2025-04-17', 55.35, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (38, 3, '2025-01-26', 928.73, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (39, 3, '2024-09-11', -597.7, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (40, 3, '2025-02-07', 990.3, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (41, 3, '2025-02-20', -123.8, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (42, 3, '2025-01-11', -757.99, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (43, 3, '2025-07-29', -323.83, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (44, 3, '2024-11-20', -539.77, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (45, 3, '2025-08-27', -858.01, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (46, 3, '2025-07-31', -542.12, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (47, 4, '2025-07-25', 28.31, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (48, 4, '2024-09-22', -29.17, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (49, 4, '2025-06-24', 446.71, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (50, 4, '2024-11-08', -54.66, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (51, 4, '2025-02-03', -619.18, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (52, 4, '2024-09-27', -137.9, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (53, 4, '2025-02-01', -65.95, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (54, 4, '2025-08-03', 346.73, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (55, 4, '2025-07-11', -878.77, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (56, 4, '2025-03-10', 601.19, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (57, 4, '2025-04-25', -616.82, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (58, 4, '2025-01-13', -719.64, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (59, 4, '2025-04-10', -74.74, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (60, 4, '2025-01-16', 616.04, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (61, 4, '2025-07-11', -898.82, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (62, 5, '2025-07-14', 852.73, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (63, 5, '2025-06-06', -187.17, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (64, 5, '2025-05-13', 729.3, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (65, 5, '2025-06-07', -242.05, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (66, 5, '2025-04-17', 853.04, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (67, 6, '2025-01-26', 393.18, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (68, 6, '2024-11-19', 323.74, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (69, 6, '2025-06-12', -620.2, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (70, 6, '2025-08-01', 158.36, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (71, 6, '2025-07-30', 495.95, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (72, 6, '2025-08-05', 168.36, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (73, 6, '2024-12-02', -685.13, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (74, 6, '2025-07-20', 702.69, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (75, 6, '2024-10-30', -864.08, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (76, 6, '2025-02-05', -760.23, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (77, 6, '2025-04-26', 157.84, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (78, 6, '2024-10-17', -836.03, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (79, 6, '2024-11-05', 130.45, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (80, 6, '2025-04-19', -591.48, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (81, 7, '2025-04-30', -468.77, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (82, 7, '2024-09-21', 291.0, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (83, 7, '2025-03-22', 858.04, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (84, 7, '2025-08-26', -83.43, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (85, 7, '2025-07-10', -853.48, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (86, 7, '2024-12-14', -469.6, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (87, 7, '2025-07-26', 758.54, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (88, 7, '2025-04-07', -684.51, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (89, 7, '2024-09-04', -394.97, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (90, 7, '2024-12-03', -984.35, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (91, 7, '2025-03-30', 863.51, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (92, 7, '2025-06-23', -471.07, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (93, 7, '2024-11-20', -689.1, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (94, 7, '2024-10-25', -578.74, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (95, 7, '2025-05-18', 374.99, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (96, 8, '2025-04-24', 810.67, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (97, 8, '2025-07-14', 268.57, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (98, 8, '2025-08-08', -992.91, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (99, 8, '2024-10-08', 959.6, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (100, 8, '2025-01-16', 103.36, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (101, 8, '2024-11-16', -980.66, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (102, 8, '2024-09-11', 807.86, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (103, 8, '2025-08-12', 669.19, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (104, 8, '2024-11-21', -703.81, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (105, 8, '2025-08-09', -383.48, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (106, 8, '2025-02-28', -579.85, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (107, 8, '2024-09-23', -794.41, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (108, 8, '2025-02-03', 947.67, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (109, 8, '2025-06-12', 851.53, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (110, 8, '2025-06-08', 952.41, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (111, 8, '2025-01-31', -950.43, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (112, 8, '2025-03-13', 564.77, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (113, 8, '2024-09-22', 728.13, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (114, 8, '2025-04-16', -681.6, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (115, 8, '2025-07-06', -234.92, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (116, 9, '2025-05-09', -600.85, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (117, 9, '2025-03-04', -389.62, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (118, 9, '2025-05-08', -952.67, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (119, 9, '2025-02-07', -343.48, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (120, 9, '2025-04-10', -297.71, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (121, 9, '2025-02-07', 359.04, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (122, 9, '2025-03-14', 878.47, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (123, 9, '2025-04-19', -642.86, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (124, 9, '2025-08-11', -783.19, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (125, 9, '2025-03-07', 457.09, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (126, 9, '2025-01-19', 212.42, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (127, 9, '2025-07-02', -229.61, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (128, 9, '2025-05-25', -490.55, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (129, 9, '2025-01-19', -996.62, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (130, 9, '2024-09-13', 438.86, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (131, 9, '2024-09-21', -605.93, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (132, 9, '2025-07-26', 897.75, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (133, 9, '2024-10-15', -372.17, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (134, 9, '2025-03-30', 14.25, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (135, 9, '2025-02-02', -347.63, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (136, 10, '2024-11-20', -745.42, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (137, 10, '2024-09-24', 880.73, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (138, 10, '2025-06-02', 231.03, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (139, 10, '2025-02-04', 95.87, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (140, 10, '2025-03-28', -426.17, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (141, 10, '2024-11-07', 213.32, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (142, 10, '2025-01-04', -116.43, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (143, 10, '2025-05-13', 22.35, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (144, 10, '2025-06-05', 317.7, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (145, 10, '2024-12-10', 327.71, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (146, 10, '2025-03-12', -813.23, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (147, 10, '2024-09-20', -379.16, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (148, 10, '2025-06-16', -951.15, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (149, 10, '2024-12-30', 222.55, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (150, 11, '2025-01-30', 772.27, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (151, 11, '2025-05-23', 436.69, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (152, 11, '2024-12-20', -200.69, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (153, 11, '2024-09-29', 375.24, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (154, 11, '2025-01-25', -562.32, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (155, 11, '2024-12-08', -70.9, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (156, 11, '2025-04-25', 834.94, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (157, 11, '2025-01-09', -733.32, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (158, 11, '2024-09-23', 62.26, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (159, 11, '2024-10-30', -365.4, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (160, 11, '2024-10-21', 630.01, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (161, 11, '2025-01-24', 661.14, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (162, 11, '2025-01-14', 794.42, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (163, 11, '2024-12-30', -99.86, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (164, 11, '2024-10-08', -445.38, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (165, 11, '2024-12-25', 253.5, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (166, 11, '2025-01-17', -845.03, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (167, 11, '2025-05-02', -456.57, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (168, 11, '2024-11-27', -838.84, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (169, 12, '2025-02-15', 387.9, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (170, 12, '2025-05-13', -871.54, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (171, 12, '2025-03-14', 85.22, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (172, 12, '2025-07-30', -586.33, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (173, 12, '2025-02-12', 809.68, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (174, 12, '2024-09-08', -960.94, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (175, 12, '2025-02-17', -46.04, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (176, 12, '2025-03-31', 506.95, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (177, 12, '2024-11-28', 495.03, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (178, 12, '2024-10-26', 795.62, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (179, 12, '2025-05-10', -454.13, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (180, 12, '2025-08-16', -222.29, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (181, 13, '2025-06-07', 681.01, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (182, 13, '2024-10-16', 68.25, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (183, 13, '2024-10-31', 128.78, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (184, 13, '2025-07-19', 285.5, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (185, 13, '2025-01-06', -636.54, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (186, 13, '2025-02-17', -345.29, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (187, 13, '2025-03-16', -325.0, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (188, 13, '2025-04-10', 504.02, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (189, 13, '2025-04-23', 669.82, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (190, 13, '2025-08-21', 498.05, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (191, 13, '2025-03-04', -551.56, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (192, 13, '2024-10-01', -919.48, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (193, 13, '2025-04-26', -601.28, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (194, 13, '2024-10-16', -695.24, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (195, 13, '2024-12-31', 338.92, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (196, 13, '2025-05-11', -69.93, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (197, 13, '2025-02-23', -664.42, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (198, 14, '2025-06-08', 929.44, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (199, 14, '2024-11-07', -948.64, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (200, 14, '2024-11-09', 354.69, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (201, 14, '2025-02-08', 882.94, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (202, 14, '2025-07-23', 184.2, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (203, 14, '2025-04-28', -796.2, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (204, 14, '2024-09-14', 200.82, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (205, 14, '2024-11-14', 565.27, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (206, 15, '2024-09-26', -258.86, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (207, 15, '2024-10-03', -317.54, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (208, 15, '2024-12-23', -788.92, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (209, 15, '2024-10-09', 783.15, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (210, 15, '2024-09-02', -694.02, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (211, 15, '2024-12-06', 930.95, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (212, 15, '2024-10-19', 616.4, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (213, 15, '2024-12-26', -70.25, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (214, 15, '2024-10-31', -463.21, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (215, 15, '2025-07-17', -442.14, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (216, 15, '2025-04-28', 500.95, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (217, 15, '2024-10-22', 336.38, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (218, 15, '2025-08-16', -11.39, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (219, 15, '2025-05-29', -24.9, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (220, 15, '2025-04-20', -319.32, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (221, 15, '2024-09-05', 760.21, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (222, 15, '2025-08-25', 33.25, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (223, 15, '2025-07-18', -517.29, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (224, 16, '2024-11-19', 516.33, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (225, 16, '2024-12-30', 291.81, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (226, 16, '2025-01-13', 585.87, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (227, 16, '2025-04-02', -556.81, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (228, 16, '2025-04-28', -387.59, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (229, 16, '2025-02-23', -53.48, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (230, 16, '2025-03-07', -148.99, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (231, 16, '2024-11-22', -338.42, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (232, 16, '2025-01-10', -458.17, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (233, 16, '2025-05-04', -758.69, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (234, 16, '2025-03-22', -760.89, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (235, 16, '2024-09-11', -629.7, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (236, 16, '2024-12-26', -447.0, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (237, 16, '2024-12-05', 193.58, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (238, 16, '2025-05-23', -407.51, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (239, 16, '2025-05-31', -395.46, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (240, 16, '2024-11-30', -746.83, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (241, 16, '2025-08-03', 106.72, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (242, 16, '2025-06-27', 275.74, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (243, 16, '2025-07-09', 745.44, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (244, 17, '2025-01-02', -42.57, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (245, 17, '2025-05-28', 931.0, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (246, 17, '2024-12-29', -771.83, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (247, 17, '2025-02-06', -16.51, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (248, 17, '2024-10-12', 372.9, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (249, 17, '2025-06-15', 622.28, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (250, 17, '2025-07-18', 987.84, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (251, 17, '2024-11-18', 528.89, 'Transfer');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (252, 17, '2024-10-29', 581.48, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (253, 17, '2024-12-06', -239.24, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (254, 17, '2025-03-31', 720.33, 'Withdrawal');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (255, 17, '2025-03-27', 137.26, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (256, 17, '2024-10-22', 920.22, 'Deposit');")
+                run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (257, 17, '2025-05-16', 251.03, 'Withdrawal');")
+                # End 
+
+                # Return success status to cloudformation 
+                responseData = {'Status': 'SUCCESS', 'StackId': event['StackId'], 'RequestId': event['RequestId'], 'LogicalResourceId': event['LogicalResourceId'], 'PhysicalResourceId': ''}
+                cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData)
+
+                # Return lambda response
+                return {
+                  'statusCode': 200,
+                  'body': 'sucess'
+                }
+                
+              except Exception as e:
+                print('-- Error for create request type --')
+                print(e)
+                print('--')
+
+                responseData = {'Status': 'FAILURE', 'StackId': event['StackId'], 'RequestId': event['RequestId'], 'LogicalResourceId': event['LogicalResourceId'], 'PhysicalResourceId': ''}
+                cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData)
+
+                # Return lambda response
+                return {
+                  'statusCode': 400,
+                  'body': 'error'
+                }
+
+            elif event['RequestType'] == 'Delete':
+              responseData = {'Status': 'SUCCESS', 'StackId': event['StackId'], 'RequestId': event['RequestId'], 'LogicalResourceId': event['LogicalResourceId'], 'PhysicalResourceId': ''}
+              cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData)
+                
+              # Return lambda response
+              return {
+                'statusCode': 200,
+                'body': 'delete'
+              }          
+      Timeout: 900
+      MemorySize: 2048
+      EphemeralStorage: 
+        Size: 5120
+      Environment:
+        Variables:
+          REDSHIFT_SECRETE_ARN: !Ref RedshiftDataApiSecret
+          KB_IAM_ROLE_NAME: !Ref KBExecutionRole
+
+  #
+  # Customer resource to execute the Redshift set up lambda function
+  #
+  RedshiftSetUpLambdaFunctionCustomResource:
+    Type: AWS::CloudFormation::CustomResource
+    DependsOn: RedshiftSetUpLambdaFunction
+    Version: 1.0
+    Properties:
+      ServiceToken: !GetAtt RedshiftSetUpLambdaFunction.Arn
+
+  #
+  # Knowledge Base IAM role
+  #
+  KBExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: bedrock.amazonaws.com
+            Action: "sts:AssumeRole"
+      Policies:
+        # Imporvement required - premissions need to be scoped down
+        - PolicyName: Admin
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 
+                  - '*'
+                Resource: '*'
+
+  #
+  # Bedrock Knowledge Base
+  #
+  BedrockSqlKnowledgeBase:
+    Type: AWS::Bedrock::KnowledgeBase
+    DependsOn: RedshiftSetUpLambdaFunctionCustomResource
+    Properties:
+      Name: redshift-knowledge-base
+      RoleArn: !GetAtt KBExecutionRole.Arn
+      KnowledgeBaseConfiguration:
+        Type: SQL
+        SqlKnowledgeBaseConfiguration:
+          Type: REDSHIFT
+          RedshiftConfiguration:
+            QueryEngineConfiguration:
+              Type: PROVISIONED
+              ProvisionedConfiguration:
+                ClusterIdentifier: 'redshift-1'
+                AuthConfiguration:
+                  Type: IAM
+            StorageConfigurations:
+              - Type: REDSHIFT
+                RedshiftConfiguration:
+                  DatabaseName: dev
+            QueryGenerationConfiguration:
+              ExecutionTimeoutSeconds: 60
+              GenerationContext:
+                Tables:
+                  - Name: dev.public.accounts
+                    Description: The accounts table stores customer account details for financial analysis and reporting, supporting account management, balance aggregation, and joins with customer and transaction data.
+                    Columns:
+                      - Name: account_id
+                        Description: A unique identifier for each account, serving as the primary key.
+                      - Name: customer_id
+                        Description: A foreign key referencing the customer_id in the customers table, linking the account to its owner.
+                      - Name: type
+                        Description: The type of account, such as 'Checking', 'Savings', or 'Credit', indicating the account's purpose.
+                      - Name: balance
+                        Description: The account’s current balance, stored as a decimal with two-digit precision. Positive values show available funds, while negative values (common for credit accounts) indicate debt.
+                  - Name: dev.public.customers
+                    Description: The customers table stores core customer details and serves as the foundation for linking accounts and transactions, enabling analysis of customer behavior, ownership, and transaction patterns.
+                    Columns:
+                      - Name: customer_id
+                        Description: A unique identifier for each customer, serving as the primary key.
+                      - Name: name
+                        Description: The full name of the customer, stored as a variable-length string to accommodate various name formats.
+                      - Name: email
+                        Description: The customer's email address, used for identification and communication, stored as a variable-length string.
+                  - Name: dev.public.transactions
+                    Description: The transactions table stores individual financial transactions for customer accounts, supporting transaction history, balance calculations, trend analysis, and joins with accounts and customers.
+                    Columns:
+                      - Name: transaction_id
+                        Description: A unique identifier for each transaction, serving as the primary key.
+                      - Name: account_id
+                        Description: A foreign key referencing the account_id in the accounts table, linking the transaction to a specific account.
+                      - Name: date
+                        Description: The date the transaction occurred, stored in a date format to enable time-based analysis (e.g., transactions within a specific period).
+                      - Name: amount
+                        Description: The transaction amount, stored as a decimal with two-digit precision. Positive values represent deposits or credits, while negative values indicate withdrawals or debits.
+                      - Name: type
+                        Description: The type of transaction, such as 'Deposit', 'Withdrawal', or 'Transfer', describing the nature of the financial activity.
+
+  BedrockRedshiftMetadataDataSource:
+    Type: AWS::Bedrock::DataSource
+    DependsOn: BedrockSqlKnowledgeBase
+    Properties:
+      KnowledgeBaseId: !Ref BedrockSqlKnowledgeBase
+      Name: redshift-metadata
+      DataSourceConfiguration:
+        Type: REDSHIFT_METADATA
