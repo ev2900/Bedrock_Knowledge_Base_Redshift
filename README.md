@@ -7,7 +7,7 @@ Knowledge bases for structured data work with Amazon Redshift.
 
 The following architecture depicts the key components. Including the additional metadata that can be added to enrich a knowledge base.
 
-<img width="700" alt="quick_setup" src="https://github.com/ev2900/Bedrock_Knowledge_Base_Redshift/blob/main/README/architecture.png">
+<img width="700" alt="quick_setup" src="https://github.com/ev2900/Bedrock_Knowledge_Base_Redshift/blob/main/README/kb_architecture.png">
 
 The outputs a knowledge base offer include generatequery, retrieve and retrieve and generate
 
