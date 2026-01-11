@@ -1,5 +1,5 @@
 # Bedrock Knowledge Base with Redshift
-<img width="275" alt="map-user" src="https://img.shields.io/badge/cloudformation template deployments-1-blue"> <img width="85" alt="map-user" src="https://img.shields.io/badge/views-000-green"> <img width="125" alt="map-user" src="https://img.shields.io/badge/unique visits-000-green">
+<img width="275" alt="map-user" src="https://img.shields.io/badge/cloudformation template deployments-1-blue"> <img width="85" alt="map-user" src="https://img.shields.io/badge/views-003-green"> <img width="125" alt="map-user" src="https://img.shields.io/badge/unique visits-001-green">
 
 Amazon Bedrock Knowledge Bases incorporate into your existing data stores and provide LLM query generation and natural language question, answer. Knowledge bases are offered for both structures and unstructured data.
 
