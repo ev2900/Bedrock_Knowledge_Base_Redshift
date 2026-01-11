@@ -123,23 +123,19 @@ Resources:
                 #
                 sql1 = 'CREATE USER "IAMR:' + os.environ['KB_IAM_ROLE_NAME'] +'" WITH PASSWORD DISABLE;'
                 run_redshift_sql(sql1)
-                time.sleep(15)
 
                 sql2 = 'GRANT USAGE ON SCHEMA public TO "IAMR:' + os.environ['KB_IAM_ROLE_NAME'] + '";'
                 run_redshift_sql(sql2)
-                time.sleep(15)
 
                 sql3 = 'GRANT SELECT ON ALL TABLES IN SCHEMA public TO "IAMR:' + os.environ['KB_IAM_ROLE_NAME'] + '";'
                 run_redshift_sql(sql3)
-                time.sleep(15)
-
+                
                 #
                 # Create tables
                 # 
                 run_redshift_sql('CREATE TABLE accounts (account_id INT, customer_id INT, type VARCHAR(50), balance DECIMAL(10,2));')
                 run_redshift_sql('CREATE TABLE customers (customer_id INT, name VARCHAR(100), email VARCHAR(100));')
                 run_redshift_sql('CREATE TABLE transactions (transaction_id INT, account_id INT, date DATE, amount DECIMAL(10,2), type VARCHAR(50));')
-                time.sleep(15)
 
                 #
                 # Account
