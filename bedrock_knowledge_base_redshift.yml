@@ -93,14 +93,28 @@ Resources:
 
                 rsd = boto3.client("redshift-data")
 
-                def run_redshift_sql(sql: str) -> str:
+                def run_redshift_sql(sql: poll_seconds: float = 1.0) -> dict:
                   try:
-                    resp = rsd.execute_statement(
-                      ClusterIdentifier='redshift-1',
-                      Database='dev',
-                      SecretArn=os.environ['REDSHIFT_SECRETE_ARN'],
+                    response = rsd.execute_statement(
+                      ClusterIdentifier="redshift-1",
+                      Database="dev",
+                      SecretArn=os.environ["REDSHIFT_SECRETE_ARN"],
                       Sql=sql,
                     )
+                    statement_id = response["Id"]
+
+                    while True:
+                      desc = rsd.describe_statement(Id=statement_id)
+                      status = desc["Status"]
+
+                      if status == "FINISHED":
+                        return desc
+
+                      if status in ("FAILED", "ABORTED"):
+                        print(f"Redshift query {status}: {desc.get('Error')}")
+
+                       time.sleep(poll_seconds)
+                  
                   except e:
                     print(e)
 
