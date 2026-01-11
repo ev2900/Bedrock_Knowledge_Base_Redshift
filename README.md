@@ -1,7 +1,7 @@
 # Bedrock Knowledge Base with Redshift
-<img width="275" alt="map-user" src="https://img.shields.io/badge/cloudformation template deployments-00-blue"> <img width="85" alt="map-user" src="https://img.shields.io/badge/views-000-green"> <img width="125" alt="map-user" src="https://img.shields.io/badge/unique visits-000-green">
+<img width="275" alt="map-user" src="https://img.shields.io/badge/cloudformation template deployments-1-blue"> <img width="85" alt="map-user" src="https://img.shields.io/badge/views-000-green"> <img width="125" alt="map-user" src="https://img.shields.io/badge/unique visits-000-green">
 
-Amazon Bedrock Knowledge Bases incorporate into your existing data stores and provide LLM query generation and natural language question, answer. Knowledge bases are offered for both structures and unstructured data. 
+Amazon Bedrock Knowledge Bases incorporate into your existing data stores and provide LLM query generation and natural language question, answer. Knowledge bases are offered for both structures and unstructured data.
 
 Knowledge bases for structured data work with Amazon Redshift.
 
@@ -26,9 +26,9 @@ You can test Bedrock Knowledge base integration with Redshift. Begin by deployin
 
 ### Sync the Knowledge Base
 
-Syncing the knowledge base allows bedrock to connects to Redshift, reads table and column metadata, embeds + indexes it into the knowledge base’s vector store so it can be used during generation and retrieval. 
+Syncing the knowledge base allows bedrock to connects to Redshift, reads table and column metadata, embeds + indexes it into the knowledge base’s vector store so it can be used during generation and retrieval.
 
-To sync the knowledge base navigate to the bedrock page on the AWS console, then knowledge bases. 
+To sync the knowledge base navigate to the bedrock page on the AWS console, then knowledge bases.
 
 Select the pre-deployed **redshift-knowledge-base** and click *Sync*
 
@@ -45,4 +45,4 @@ You can now use this interface to test the knowledge base
 <img width="700" alt="quick_setup" src="https://github.com/ev2900/Bedrock_Knowledge_Base_Redshift/blob/main/README/test_2.png">
 
 ## Planned Improvements
-1. Bulk SQL insert statements to load the table data. The CloudFormation stack currently uses 1 insert per row, which is less efficient 
+1. Bulk SQL insert statements to load the table data. The CloudFormation stack currently uses 1 insert per row, which is less efficient
