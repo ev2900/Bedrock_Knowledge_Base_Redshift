@@ -36,5 +36,13 @@ Select the pre-deployed **redshift-knowledge-base** and click *Sync*
 
 ### Test via. the AWS Console
 
+You can test the knowledge base via. the built in AWS console interface. Click *Test Knowledge Base*
+
+<img width="700" alt="quick_setup" src="https://github.com/ev2900/Bedrock_Knowledge_Base_Redshift/blob/main/README/test_1.png">
+
+You can now use this interface to test the knowledge base
+
+<img width="700" alt="quick_setup" src="https://github.com/ev2900/Bedrock_Knowledge_Base_Redshift/blob/main/README/test_2.png">
+
 ## Planned Improvements
-1. Bulk SQL insert statement to load the table data. The CloudFormation stack currently uses 1 insert per row, which is less efficient 
+1. Bulk SQL insert statements to load the table data. The CloudFormation stack currently uses 1 insert per row, which is less efficient 
