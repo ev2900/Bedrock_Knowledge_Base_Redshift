@@ -85,7 +85,6 @@ Resources:
 
             if event['RequestType'] == 'Create':
               try:
-                # Start
                 import json
                 import boto3
                 import time
@@ -113,19 +112,7 @@ Resources:
                       print(f"Redshift query {status}: {desc.get('Error')}")
 
                     time.sleep(poll_seconds)
-                  
-                #
-                # KB IAM role premisions
-                #
-                sql1 = 'CREATE USER "IAMR:' + os.environ['KB_IAM_ROLE_NAME'] +'" WITH PASSWORD DISABLE;'
-                run_redshift_sql(sql1)
-
-                sql2 = 'GRANT USAGE ON SCHEMA public TO "IAMR:' + os.environ['KB_IAM_ROLE_NAME'] + '";'
-                run_redshift_sql(sql2)
-
-                sql3 = 'GRANT SELECT ON ALL TABLES IN SCHEMA public TO "IAMR:' + os.environ['KB_IAM_ROLE_NAME'] + '";'
-                run_redshift_sql(sql3)
-                
+                                  
                 #
                 # Create tables
                 # 
@@ -428,7 +415,18 @@ Resources:
                 run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (255, 17, '2025-03-27', 137.26, 'Deposit');")
                 run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (256, 17, '2024-10-22', 920.22, 'Deposit');")
                 run_redshift_sql("INSERT INTO transactions (transaction_id, account_id, date, amount, type) VALUES (257, 17, '2025-05-16', 251.03, 'Withdrawal');")
-                # End 
+
+                #
+                # KB IAM role premisions
+                #
+                sql1 = 'CREATE USER "IAMR:' + os.environ['KB_IAM_ROLE_NAME'] +'" WITH PASSWORD DISABLE;'
+                run_redshift_sql(sql1)
+
+                sql2 = 'GRANT USAGE ON SCHEMA public TO "IAMR:' + os.environ['KB_IAM_ROLE_NAME'] + '";'
+                run_redshift_sql(sql2)
+
+                sql3 = 'GRANT SELECT ON ALL TABLES IN SCHEMA public TO "IAMR:' + os.environ['KB_IAM_ROLE_NAME'] + '";'
+                run_redshift_sql(sql3)
 
                 # Return success status to cloudformation 
                 responseData = {'Status': 'SUCCESS', 'StackId': event['StackId'], 'RequestId': event['RequestId'], 'LogicalResourceId': event['LogicalResourceId'], 'PhysicalResourceId': ''}
