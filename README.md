@@ -26,6 +26,14 @@ You can test Bedrock Knowledge base integration with Redshift. Begin by deployin
 
 ### Sync the Knowledge Base
 
+Syncing the knowledge base allows bedrock to connects to Redshift, reads table and column metadata, embeds + indexes it into the knowledge base’s vector store so it can be used during generation and retrieval. 
+
+To sync the knowledge base navigate to the bedrock page on the AWS console, then knowledge bases. 
+
+Select the pre-deployed **redshift-knowledge-base** and click *Sync*
+
+<img width="700" alt="quick_setup" src="https://github.com/ev2900/Bedrock_Knowledge_Base_Redshift/blob/main/README/sync.png">
+
 ### Test via. the AWS Console
 
 ## Planned Improvements
